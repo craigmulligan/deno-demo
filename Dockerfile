@@ -1,27 +1,27 @@
-# Runtime stage
+# Build stage
 FROM hayd/alpine-deno:1.7.2
 
-WORKDIR /app/src
+WORKDIR /app
 
 # Cache the dependencies as a layer (the following two steps are re-run only when deps.ts is modified).
 # Ideally fetch deps.ts will download and compile _all_ external files used in main.ts.
-COPY src/deps.ts src/lock.ts ./
-RUN deno cache --lock lock.ts deps.ts
+COPY lock.json ./
+COPY src/deps.ts ./src/
+RUN deno cache --reload --lock=lock.json src/deps.ts
 
 # These steps will be re-run upon each file change in your working directory:
-ADD ./src/ .
+ADD ./src/ ./src/
 
-run ls
-# Compile the main app so that it doesn't need to be compiled each startup/entry.
-RUN deno cache index.ts
-
-RUN deno compile --allow-net --unstable --lite --output server index.ts
-
+RUN deno compile --allow-net --unstable --lite --output ./src/server ./src/index.ts
 
 # Runtime stage
-FROM alpine:latest  
+FROM frolvlad/alpine-glibc
 RUN apk --no-cache add ca-certificates
 EXPOSE 8000
-WORKDIR /root/
-COPY --from=0 /app/src/server .
-CMD ["./server"]
+WORKDIR /app/src
+
+COPY --from=0 /app/src/ .
+
+RUN ls -lh server
+
+CMD ["/app/src/server"]
